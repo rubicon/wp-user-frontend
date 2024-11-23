@@ -17,7 +17,7 @@ class WPUF_Subscription {
         add_filter( 'wpuf_add_post_redirect', [ $this, 'post_redirect' ], 10, 4 );
 
         add_filter( 'wpuf_addpost_notice', [ $this, 'force_pack_notice' ], 20, 3 );
-        add_filter( 'wpuf_can_post', [ $this, 'force_pack_permission' ], 20, 3 );
+        // add_filter( 'wpuf_can_post', [ $this, 'force_pack_permission' ], 20, 3 );
         add_action( 'wpuf_add_post_form_top', [ $this, 'add_post_info' ], 10, 2 );
 
         add_action( 'wpuf_add_post_after_insert', [ $this, 'monitor_new_post' ], 10, 3 );
@@ -274,8 +274,8 @@ class WPUF_Subscription {
      *
      * @since 2.2
      *
-     * @param int      $subscription_id
-     * @param \WP_Post $pack_post
+     * @param int     $subscription_id
+     * @param WP_Post $pack_post
      *
      * @return array
      */
@@ -293,6 +293,7 @@ class WPUF_Subscription {
         $meta['trial_duration']             = get_post_meta( $subscription_id, '_trial_duration', true );
         $meta['trial_duration_type']        = get_post_meta( $subscription_id, '_trial_duration_type', true );
         $meta['post_type_name']             = get_post_meta( $subscription_id, '_post_type_name', true );
+        $meta['additional_cpt_options']     = get_post_meta( $subscription_id, 'additional_cpt_options', true );
         $meta['_enable_post_expiration']    = get_post_meta( $subscription_id, '_enable_post_expiration', true );
         $meta['_post_expiration_time']      = get_post_meta( $subscription_id, '_post_expiration_time', true );
         $meta['_expired_post_status']       = get_post_meta( $subscription_id, '_expired_post_status', true );
@@ -353,8 +354,8 @@ class WPUF_Subscription {
     /**
      * Save form data
      *
-     * @param int      $post_ID
-     * @param \WP_Post $post
+     * @param int     $post_ID
+     * @param WP_Post $post
      *
      * @return void
      */
@@ -418,6 +419,7 @@ class WPUF_Subscription {
         update_post_meta( $subscription_id, '_trial_duration', $trial_duration );
         update_post_meta( $subscription_id, '_trial_duration_type', $trial_duration_type );
         update_post_meta( $subscription_id, '_post_type_name', array_map( 'sanitize_text_field', $post_data['post_type_name'] ) );
+        update_post_meta( $subscription_id, 'additional_cpt_options', array_map( 'sanitize_text_field', $post_data['additional_cpt_options'] ) );
         update_post_meta( $subscription_id, '_enable_post_expiration', $enable_post_expir );
         update_post_meta( $subscription_id, '_post_expiration_time', $expiration_time );
         update_post_meta( $subscription_id, '_expired_post_status', $expire_post_status );
@@ -457,7 +459,7 @@ class WPUF_Subscription {
                     'delete_post'         => $capability,
                     'read_post'           => $capability,
                 ],
-                'labels' => [
+                'labels'          => [
                     'name'               => __( 'Subscription', 'wp-user-frontend' ),
                     'singular_name'      => __( 'Subscription', 'wp-user-frontend' ),
                     'menu_name'          => __( 'Subscription', 'wp-user-frontend' ),

@@ -2,6 +2,7 @@
 
 namespace WeDevs\Wpuf\Traits;
 
+use Invisible_Recaptcha;
 use WeDevs\Wpuf\Fields\Form_Field_Featured_Image;
 use WeDevs\Wpuf\Fields\Form_Field_Post_Content;
 use WeDevs\Wpuf\Fields\Form_Field_Post_Excerpt;
@@ -235,7 +236,7 @@ trait FieldableTrait {
         $rs_captcha_file  = isset( $_POST['rs_captcha_val'] ) ? sanitize_text_field( wp_unslash( $_POST['rs_captcha_val'] ) ) : '';
 
         if ( class_exists( 'ReallySimpleCaptcha' ) ) {
-            $captcha_instance = new ReallySimpleCaptcha();
+            $captcha_instance = new \ReallySimpleCaptcha();
 
             if ( ! $captcha_instance->check( $rs_captcha_file, $rs_captcha_input ) ) {
                 wpuf()->ajax->send_error( __( 'Really Simple Captcha validation failed', 'wp-user-frontend' ) );
@@ -267,7 +268,7 @@ trait FieldableTrait {
             }
 
             $response  = null;
-            $reCaptcha = new WPUF_ReCaptcha( $private_key );
+            $reCaptcha = new \WPUF_ReCaptcha( $private_key );
 
             $resp = $reCaptcha->verifyResponse(
                 $remote_addr,
@@ -289,7 +290,7 @@ trait FieldableTrait {
         } elseif ( $no_captcha == 0 && 1 == $invisible ) {
             $response  = null;
             $recaptcha = isset( $_POST['g-recaptcha-response'] ) ? sanitize_text_field( wp_unslash( $_POST['g-recaptcha-response'] ) ) : '';
-            $object    = new \Invisible_Recaptcha( $site_key, $private_key );
+            $object    = new Invisible_Recaptcha( $site_key, $private_key );
 
             $response = $object->verifyResponse( $recaptcha );
 
@@ -322,6 +323,16 @@ trait FieldableTrait {
         // prepare the meta vars
         [ $meta_key_value, $multi_repeated, $files ] = self::prepare_meta_fields( $meta_vars );
         // set featured image if there's any
+
+        /**
+         * Fires before updating post meta fields
+         *
+         * @param int $post_id
+         * @param array $meta_key_value
+         * @param array $multi_repeated
+         * @param array $files
+         */
+        do_action( 'wpuf_before_updating_post_meta_fields', $post_id, $meta_key_value, $multi_repeated, $files );
 
         // @codingStandardsIgnoreStart
         $wpuf_files = isset( $_POST['wpuf_files'] ) ? $_POST['wpuf_files'] : [];
@@ -448,7 +459,7 @@ trait FieldableTrait {
                                 return null;
                             }
 
-                            if ( $term instanceof WP_Term ) {
+                            if ( $term instanceof \WP_Term ) {
                                 return $term->term_id;
                             }
 
@@ -695,25 +706,47 @@ trait FieldableTrait {
      *
      * @since 4.0.0 moved from Render_Form.php to FieldableTrait.php
      *
-     * @param array  $array
+     * @param array  $the_array
      * @param string $key   name of key
      * @param string $value the value to search
      *
      * @return array
      */
-    public function search( $array, $key, $value ) {
+    public function search( $the_array, $key, $value ) {
         $results = [];
 
-        if ( is_array( $array ) ) {
-            if ( isset( $array[ $key ] ) && $array[ $key ] === $value ) {
-                $results[] = $array;
+        if ( is_array( $the_array ) ) {
+            if ( isset( $the_array[ $key ] ) && $the_array[ $key ] === $value ) {
+                $results[] = $the_array;
             }
 
-            foreach ( $array as $subarray ) {
+            foreach ( $the_array as $subarray ) {
                 $results = array_merge( $results, $this->search( $subarray, $key, $value ) );
             }
         }
 
         return $results;
+    }
+
+    /**
+     * Get WooCommerce attributres
+     *
+     * @since 4.0.6 moved from Render_Form.php to FieldableTrait.php
+     *
+     * @param array $taxonomy
+     *
+     * @return array
+     */
+    public function woo_attribute( $taxonomy ) {
+        check_ajax_referer( 'wpuf_form_add' );
+        $taxonomy_name = isset( $_POST[ $taxonomy['name'] ] ) ? sanitize_text_field( wp_unslash( $_POST[ $taxonomy['name'] ] ) ) : '';
+
+        return [
+            'name'         => ! empty( $taxonomy['name'] ) ? $taxonomy['name'] : '',
+            'value'        => $taxonomy_name,
+            'is_visible'   => ! empty( $taxonomy['woo_attr_vis'] ) && ( 'yes' === $taxonomy['woo_attr_vis'] ) ? 1 : 0,
+            'is_variation' => 0,
+            'is_taxonomy'  => 1,
+        ];
     }
 }

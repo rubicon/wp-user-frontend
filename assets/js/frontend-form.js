@@ -662,7 +662,7 @@
                         }
 
                         if ( hasRepeat === 'yes' ) {
-                            var repeatItem = $('[data-type="confirm_password"]').eq(0);
+                            var repeatItem = $(item).closest('.wpuf-form').find('[data-type="confirm_password"]').eq(0);
 
                             if ( repeatItem.val() !== val ) {
                                 errors.push({
@@ -679,19 +679,19 @@
                                 errors.push({
                                     type: 'custom',
                                     container: item,
-                                    message: 'Password minimum strength should be weak'
+                                    message: wpuf_frontend.password_warning_weak
                                 });
                             } else if (strength === 'medium' && strengthMeter < 3) {
                                 errors.push({
                                     type: 'custom',
                                     container: item,
-                                    message: 'Password minimum strength should be medium'
+                                    message: wpuf_frontend.password_warning_medium
                                 });
                             } else if (strength === 'strong' && strengthMeter < 4) {
                                 errors.push({
                                     type: 'custom',
                                     container: item,
-                                    message: 'Password strength should be strong'
+                                    message: wpuf_frontend.password_warning_strong
                                 });
                             }
                         }
@@ -1491,5 +1491,20 @@
 
         // Set name attribute for google map search field
         $(".wpuf-form-add #wpuf-map-add-location").attr("name", "find_address");
+    });
+
+    $(function($) {
+        // eye icon for password field
+        $(document).on('click', '.wpuf-eye', function () {
+            const input = $( this ).siblings( 'input' );
+
+            if ( input.attr("type") === "password" ) {
+                input.attr( "type", "text" );
+                $( this ).attr( "src", wpuf_frontend.asset_url + '/images/eye-close.svg' );
+            } else {
+                input.attr( "type", "password" );
+                $( this ).attr( "src", wpuf_frontend.asset_url + '/images/eye.svg' );
+            }
+        });
     });
 })(jQuery, window);

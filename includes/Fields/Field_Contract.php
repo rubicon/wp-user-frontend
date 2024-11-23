@@ -527,7 +527,11 @@ abstract class Field_Contract {
                 'type'      => 'multiselect',
                 'section'   => 'advanced',
                 'priority'  => 27,
-                'help_text' => __( 'Search the terms name. use ⇦ ⇨ for navigate', 'wp-user-frontend' ),
+                // translators: %1$s: left arrow, %2$s: right arrow
+                'help_text' => sprintf(
+                    // translators: %s: left and right arrow
+                    __( 'Search the terms name. use %1$s %2$s for navigate', 'wp-user-frontend' ), '⇦', '⇨'
+                ),
                 'options'   => wpuf_get_terms( $tax_name ),
             ],
 
@@ -700,7 +704,10 @@ abstract class Field_Contract {
                 'dependencies' => [
                     'rich' => [ 'yes', 'teeny' ],
                 ],
-                'help_text' => __( 'Select button for exclude from frontend. Search button name. use ⇦ ⇨ for navigate', 'wp-user-frontend' ),
+                'help_text' => sprintf(
+                    // translators: %1$s: left arrow, %2$s: right arrow
+                    __( 'Select button for exclude from frontend. Search button name. use %1$s %2$s for navigate', 'wp-user-frontend' ), '⇦', '⇨'
+                ),
                 'options'   => wpuf_get_editor_buttons(),
             ],
         ];
@@ -904,5 +911,51 @@ abstract class Field_Contract {
             })(jQuery);
         </script>
         <?php
+    }
+
+    /**
+     * Enqueue file upload scripts
+     *
+     * @since 4.0.7
+     *
+     * @return void
+     */
+    public function enqueue_file_upload_scripts() {
+        wp_enqueue_style( 'wpuf-sweetalert2' );
+
+        wp_enqueue_script( 'wpuf-sweetalert2' );
+        wp_enqueue_script( 'wpuf-upload' );
+
+        wp_localize_script(
+            'wpuf-upload', 'wpuf_upload', [
+                'confirmMsg' => __( 'Are you sure?', 'wp-user-frontend' ),
+                'delete_it'  => __( 'Yes, delete it', 'wp-user-frontend' ),
+                'cancel_it'  => __( 'No, cancel it', 'wp-user-frontend' ),
+                'ajaxurl'    => admin_url( 'admin-ajax.php' ),
+                'nonce'      => wp_create_nonce( 'wpuf_nonce' ),
+                'plupload'   => [
+                    'url'              => admin_url( 'admin-ajax.php' ) . '?nonce=' . wp_create_nonce(
+                            'wpuf-upload-nonce'
+                        ),
+                    'flash_swf_url'    => includes_url( 'js/plupload/plupload.flash.swf' ),
+                    'filters'          => [
+                        [
+                            'title'      => __( 'Allowed Files', 'wp-user-frontend' ),
+                            'extensions' => '*',
+                        ],
+                    ],
+                    'multipart'        => true,
+                    'urlstream_upload' => true,
+                    'warning'          => __( 'Maximum number of files reached!', 'wp-user-frontend' ),
+                    'size_error'       => __(
+                        'The file you have uploaded exceeds the file size limit. Please try again.',
+                        'wp-user-frontend'
+                    ),
+                    'type_error'       => __(
+                        'You have uploaded an incorrect file type. Please try again.', 'wp-user-frontend'
+                    ),
+                ],
+            ]
+        );
     }
 }

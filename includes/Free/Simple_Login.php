@@ -2,7 +2,10 @@
 
 namespace WeDevs\Wpuf\Free;
 
+use WeDevs\Wpuf\Render_Form;
 use WeDevs\Wpuf\WPUF_User;
+use WP_Error;
+use WP_User;
 
 /**
  * Login and forgot password handler class
@@ -15,6 +18,13 @@ class Simple_Login {
     private $login_errors = [];
 
     private $messages = [];
+
+    /**
+     * Cloudflare Turnstile messages
+     *
+     * @var array
+     */
+    private $cf_messages = [];
 
     private static $_instance;
 
@@ -156,12 +166,12 @@ class Simple_Login {
         if ( $recaptcha === 'on' ) {
             if ( isset( $_REQUEST['g-recaptcha-response'] ) ) {
                 if ( empty( $_REQUEST['g-recaptcha-response'] ) ) {
-                    $user = new \WP_Error( 'WPUFLoginCaptchaError', 'Empty reCaptcha Field.' );
+                    $user = new WP_Error( 'WPUFLoginCaptchaError', 'Empty reCaptcha Field.' );
                 } else {
                     $no_captcha        = 1;
                     $invisible_captcha = 0;
 
-                    WPUF_Render_Form::init()->validate_re_captcha( $no_captcha, $invisible_captcha );
+                    Render_Form::init()->validate_re_captcha( $no_captcha, $invisible_captcha );
                 }
             }
         }
@@ -336,7 +346,7 @@ class Simple_Login {
         $reset = isset( $getdata['reset'] ) ? sanitize_text_field( $getdata['reset'] ) : '';
 
         if ( false === $login_page ) {
-            return;
+            return '';
         }
 
         ob_start();
@@ -358,6 +368,10 @@ class Simple_Login {
                 case 'lostpassword':
                     $checkemail = isset( $getdata['checkemail'] ) ? sanitize_text_field( $getdata['checkemail'] ) : '';
 
+                    if ( $this->login_errors ) {
+                        wpuf_load_template( 'lost-pass-form.php', $args );
+                        break;
+                    }
                     if ( 'confirm' === $checkemail ) {
                         $this->messages[] = __( 'Check your e-mail for the confirmation link.', 'wp-user-frontend' );
                     }
@@ -387,6 +401,11 @@ class Simple_Login {
 
                 default:
                     $loggedout = isset( $getdata['loggedout'] ) ? sanitize_text_field( $getdata['loggedout'] ) : '';
+                    $enable_turnstile = wpuf_get_option( 'enable_turnstile', 'wpuf_general', 'off' );
+
+                    if ( 'on' === $enable_turnstile ) {
+                        wp_enqueue_script( 'wpuf-turnstile' );
+                    }
 
                     if ( $loggedout === 'true' ) {
                         $this->messages[] = __( 'You are now logged out.', 'wp-user-frontend' );
@@ -404,104 +423,190 @@ class Simple_Login {
     }
 
     /**
+     * Verify if cloudflare turnstile request is successful
+     *
+     * @since 4.0.13
+     *
+     * @return bool
+     */
+    private function verify_cloudflare_turnstile_on_login() {
+        $nonce = isset( $_POST['wpuf-login-nonce'] ) ? sanitize_key( wp_unslash( $_POST['wpuf-login-nonce'] ) ) : '';
+
+        $enable_turnstile = wpuf_get_option( 'enable_turnstile', 'wpuf_general', 'off' );
+
+        if ( 'on' !== $enable_turnstile ) {
+            return true;
+        }
+
+        if ( isset( $nonce ) && ! wp_verify_nonce( $nonce, 'wpuf_login_action' ) ) {
+            return false;
+        }
+
+        $secret = wpuf_get_option( 'turnstile_secret_key', 'wpuf_general', '' );
+
+        if ( empty( $secret ) ) {
+            return false;
+        }
+
+        $remote_addr = ! empty( $_SERVER['REMOTE_ADDR'] ) ? sanitize_url(
+            wp_unslash( $_SERVER['REMOTE_ADDR'] )
+        ) : '';
+
+        $cf_url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+        $token  = ! empty( $_POST['cf-turnstile-response'] ) ? sanitize_text_field( wp_unslash( $_POST['cf-turnstile-response'] ) ) : '';
+
+        // Request data
+        $data = [
+            'secret'   => $secret,
+            'response' => $token,
+            'remoteip' => $remote_addr,
+        ];
+
+        $response = wp_remote_post( $cf_url, [ 'body' => $data ] );
+        $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( ! empty( $body['success'] ) ) {
+            return true;
+        } else {
+            $this->cf_messages[] = ! empty( $body['error-codes'] ) ? $body['error-codes'] : '';
+
+            return false;
+        }
+    }
+
+    /**
+     * Remove selected cookie to have consistency with the login nonce.
+     * fixes WooCommerce Stripe Gateway plugin conflict
+     *
+     * @since 4.0.7
+     *
+     * @return void
+     */
+    public function unset_logged_in_cookie() {
+        if ( isset( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+            unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+        }
+    }
+
+    /**
      * Process login form
      *
      * @return void
      */
     public function process_login() {
-        if ( ! empty( $_POST['wpuf_login'] ) && ! empty( $_POST['wpuf-login-nonce'] ) ) {
-            $creds = [];
+        if ( empty( $_POST['wpuf_login'] ) || empty( $_POST['wpuf-login-nonce'] ) ) {
+            return;
+        }
 
-            $nonce = sanitize_key( wp_unslash( $_POST['wpuf-login-nonce'] ) );
+        // unset the specific cookie to fix WooCommerce Stripe Gateway plugin conflict
+        add_action( 'set_logged_in_cookie', [ $this, 'unset_logged_in_cookie' ], 11 );
 
-            if ( isset( $nonce ) && ! wp_verify_nonce( $nonce, 'wpuf_login_action' ) ) {
-                $this->login_errors[] = __( 'Nonce is invalid', 'wp-user-frontend' );
+        $creds = [];
 
+        $nonce = sanitize_key( wp_unslash( $_POST['wpuf-login-nonce'] ) );
+
+        if ( isset( $nonce ) && ! wp_verify_nonce( $nonce, 'wpuf_login_action' ) ) {
+            $this->login_errors[] = __( 'Nonce is invalid', 'wp-user-frontend' );
+
+            return;
+        }
+
+        $log = isset( $_POST['log'] ) ? sanitize_text_field( wp_unslash( $_POST['log'] ) ) : '';
+        $pwd = isset( $_POST['pwd'] ) ? sanitize_text_field( ( wp_unslash( $_POST['pwd'] ) ) ) : '';
+        // $g_recaptcha_response = isset( $_POST['g-recaptcha-response'] ) ? sanitize_text_field( wp_unslash( $_POST['g-recaptcha-response'] ) ) : '';
+
+        if ( ! $this->verify_cloudflare_turnstile_on_login() ) {
+            $errors = ! empty( $this->cf_messages[0] ) ? $this->cf_messages[0] : '';
+            $errors = is_array( $errors ) ? implode( ', ', $errors ) : $errors;
+
+            $this->login_errors[] =
+                sprintf(
+                // translators: %1$s and %2$s are strong tags, %3$s is the error message
+                    __( '%1$sError%2$s: Cloudflare Turnstile verification failed. Reasons: [%3$s]', 'wp-user-frontend' ),
+                    '<strong>',
+                    '</strong>',
+                    $errors
+                );
+            '<strong>' . __( 'Error', 'wp-user-frontend' ) . ':</strong> ' . __( 'Cloudflare Turnstile verification failed. Reasons: [', 'wp-user-frontend' );
+        }
+
+        $validation_error = new WP_Error();
+        $validation_error = apply_filters( 'wpuf_process_login_errors', $validation_error, $log, $pwd );
+
+        if ( $validation_error->get_error_code() ) {
+            $this->login_errors[] = $validation_error->get_error_message();
+
+            return;
+        }
+
+        if ( empty( $log ) ) {
+            $this->login_errors[] = __( 'Username is required.', 'wp-user-frontend' );
+
+            return;
+        }
+
+        if ( empty( $pwd ) ) {
+            $this->login_errors[] = __( 'Password is required.', 'wp-user-frontend' );
+
+            return;
+        }
+
+        if ( isset( $_POST['g-recaptcha-response'] ) ) {
+            if ( empty( $_POST['g-recaptcha-response'] ) ) {
+                $this->login_errors[] = __( 'Empty reCaptcha Field', 'wp-user-frontend' );
                 return;
-            }
-
-            $log = isset( $_POST['log'] ) ? esc_attr( wp_unslash( $_POST['log'] ) ) : '';
-            $pwd = isset( $_POST['pwd'] ) ? trim( $_POST['pwd'] ) : '';
-            // $g_recaptcha_response = isset( $_POST['g-recaptcha-response'] ) ? sanitize_text_field( wp_unslash( $_POST['g-recaptcha-response'] ) ) : '';
-
-            $validation_error = new \WP_Error();
-            $validation_error = apply_filters( 'wpuf_process_login_errors', $validation_error, $log, $pwd );
-
-            if ( $validation_error->get_error_code() ) {
-                $this->login_errors[] = $validation_error->get_error_message();
-
-                return;
-            }
-
-            if ( empty( $log ) ) {
-                $this->login_errors[] = __( 'Username is required.', 'wp-user-frontend' );
-
-                return;
-            }
-
-            if ( empty( $pwd ) ) {
-                $this->login_errors[] = __( 'Password is required.', 'wp-user-frontend' );
-
-                return;
-            }
-
-            if ( isset( $_POST['g-recaptcha-response'] ) ) {
-                if ( empty( $_POST['g-recaptcha-response'] ) ) {
-                    $this->login_errors[] = __( 'Empty reCaptcha Field', 'wp-user-frontend' );
-                    return;
-                } else {
-                    $no_captcha = 1;
-                    $invisible_captcha = 0;
-                    WPUF_Render_Form::init()->validate_re_captcha( $no_captcha, $invisible_captcha );
-                }
-            }
-
-            if ( is_email( $log ) && apply_filters( 'wpuf_get_username_from_email', true ) ) {
-                $user = get_user_by( 'email', $log );
-
-                if ( isset( $user->user_login ) ) {
-                    $creds['user_login'] = $user->user_login;
-                } else {
-                    $this->login_errors[] = '<strong>' . __( 'Error', 'wp-user-frontend' ) . ':</strong> ' . __( 'A user could not be found with this email address.', 'wp-user-frontend' );
-
-                    return;
-                }
             } else {
-                $creds['user_login'] = $log;
+                $no_captcha = 1;
+                $invisible_captcha = 0;
+                Render_Form::init()->validate_re_captcha( $no_captcha, $invisible_captcha );
             }
+        }
 
-            $creds['user_password'] = $pwd;
-            $creds['remember']      = isset( $_POST['rememberme'] ) ? sanitize_text_field( wp_unslash( $_POST['rememberme'] ) ) : '';
+        if ( is_email( $log ) && apply_filters( 'wpuf_get_username_from_email', true ) ) {
+            $user = get_user_by( 'email', $log );
 
             if ( isset( $user->user_login ) ) {
-                $validate = wp_authenticate_email_password( null, trim( $log ), $creds['user_password'] );
-
-                if ( is_wp_error( $validate ) ) {
-                    $this->login_errors[] = $validate->get_error_message();
-                    return;
-                }
-            }
-
-            $secure_cookie = is_ssl() ? true : false;
-            $user          = wp_signon( apply_filters( 'wpuf_login_credentials', $creds ), $secure_cookie );
-
-            //try with old implementation, which is wrong but we must support that
-            if ( is_wp_error( $user ) ) {
-                $creds['user_login']    = sanitize_text_field( wp_unslash( $_POST['log'] ) );
-                $creds['user_password'] = sanitize_text_field( wp_unslash( $_POST['pwd'] ) );
-
-                $user = wp_signon( apply_filters( 'wpuf_login_credentials', $creds ), $secure_cookie );
-            }
-
-            if ( is_wp_error( $user ) ) {
-                $this->login_errors[] = $user->get_error_message();
+                $creds['user_login'] = $user->user_login;
+            } else {
+                $this->login_errors[] = '<strong>' . __( 'Error', 'wp-user-frontend' ) . ':</strong> ' . __( 'A user could not be found with this email address.', 'wp-user-frontend' );
 
                 return;
-            } else {
-                $redirect = $this->login_redirect();
-                wp_redirect( apply_filters( 'wpuf_login_redirect', $redirect, $user ) );
-                exit;
             }
+        } else {
+            $creds['user_login'] = $log;
+        }
+
+        $creds['user_password'] = $pwd;
+        $creds['remember']      = isset( $_POST['rememberme'] ) ? sanitize_text_field( wp_unslash( $_POST['rememberme'] ) ) : '';
+
+        if ( isset( $user->user_login ) ) {
+            $validate = wp_authenticate_email_password( null, trim( $log ), $creds['user_password'] );
+
+            if ( is_wp_error( $validate ) ) {
+                $this->login_errors[] = $validate->get_error_message();
+                return;
+            }
+        }
+
+        $secure_cookie = is_ssl() ? true : false;
+        $user          = wp_signon( apply_filters( 'wpuf_login_credentials', $creds ), $secure_cookie );
+
+        //try with old implementation, which is wrong but we must support that
+        if ( is_wp_error( $user ) ) {
+            $creds['user_login']    = sanitize_text_field( wp_unslash( $_POST['log'] ) );
+            $creds['user_password'] = sanitize_text_field( wp_unslash( $_POST['pwd'] ) );
+
+            $user = wp_signon( apply_filters( 'wpuf_login_credentials', $creds ), $secure_cookie );
+        }
+
+        if ( is_wp_error( $user ) ) {
+            $this->login_errors[] = $user->get_error_message();
+
+            return;
+        } else {
+            $redirect = $this->login_redirect();
+            wp_safe_redirect( apply_filters( 'wpuf_login_redirect', $redirect, $user ) );
+            exit;
         }
     }
 
@@ -622,8 +727,11 @@ class Simple_Login {
 
         // process lost password form
         if ( isset( $_POST['user_login'] ) && isset( $_POST['_wpnonce'] ) ) {
-            $nonce = sanitize_key( wp_unslash( $_POST['_wpnonce'] ) );
-            wp_verify_nonce( $nonce, 'wpuf_lost_pass' );
+            $nonce = ! empty( $_POST['_wpnonce'] ) ? sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ) : '';
+
+            if ( ! empty( $nonce) && ! wp_verify_nonce( $nonce, 'wpuf_lost_pass' ) ) {
+                return ;
+            }
 
             if ( $this->retrieve_password() ) {
                 $url = add_query_arg(
@@ -654,8 +762,6 @@ class Simple_Login {
                 $args['key']   = $key;
                 $args['login'] = $login;
 
-                wp_verify_nonce( $nonce, 'wpuf_reset_pass' );
-
                 if ( empty( $pass1 ) || empty( $pass2 ) ) {
                     $this->login_errors[] = __( 'Please enter your password.', 'wp-user-frontend' );
 
@@ -668,7 +774,7 @@ class Simple_Login {
                     return;
                 }
 
-                $errors = new \WP_Error();
+                $errors = new WP_Error();
 
                 do_action( 'validate_password_reset', $errors, $user );
 
@@ -783,7 +889,7 @@ class Simple_Login {
         if ( ! is_wp_error( $user ) ) {
             if ( $user->ID ) {
                 $resend_link = add_query_arg( 'resend_activation', $user->ID, $this->get_login_url() );
-                $error       = new \WP_Error();
+                $error       = new WP_Error();
                 $wpuf_user   = new WPUF_User( $user->ID );
 
                 if ( ! $wpuf_user->is_verified() ) {
@@ -888,7 +994,7 @@ class Simple_Login {
         $pack_id                      = ! empty( $_GET['pack_id'] ) ? sanitize_key( wp_unslash( $_GET['pack_id'] ) ) : '';
 
         if ( $autologin_after_registration === 'on'
-            && $pack_id !== null && is_integer( (int) $pack_id ) ) {
+             && $pack_id !== null && is_integer( (int) $pack_id ) ) {
             wp_set_current_user( $user_id );
             wp_set_auth_cookie( $user_id );
         }
@@ -915,10 +1021,10 @@ class Simple_Login {
      *
      * @since 2.2
      *
-     * @return \WP_Error
+     * @return WP_Error
      */
     public function user_activation_message() {
-        return new \WP_Error( 'user-activated', __( 'Your account has been activated', 'wp-user-frontend' ), 'message' );
+        return new WP_Error( 'user-activated', __( 'Your account has been activated', 'wp-user-frontend' ), 'message' );
     }
 
     public function wp_login_page_redirect() {

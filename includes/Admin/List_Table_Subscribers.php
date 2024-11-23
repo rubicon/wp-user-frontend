@@ -2,6 +2,8 @@
 
 namespace WeDevs\Wpuf\Admin;
 
+use WP_List_Table;
+
 if ( ! class_exists( 'WP_List_Table' ) ) {
     require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
@@ -9,7 +11,9 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 /**
  * List table class
  */
-class List_Table_Subscribers extends \WP_List_Table {
+#[AllowDynamicProperties]
+class List_Table_Subscribers extends WP_List_Table {
+    protected $page_status;
 
     public function __construct() {
         parent::__construct(

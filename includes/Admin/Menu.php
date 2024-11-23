@@ -41,9 +41,19 @@ class Menu {
         do_action( 'wpuf_admin_menu_top' );
 
         if ( 'on' === wpuf_get_option( 'enable_payment', 'wpuf_payment', 'on' ) ) {
-            $subscription_hook = add_submenu_page( $this->parent_slug, __( 'Subscriptions', 'wp-user-frontend' ), __( 'Subscriptions', 'wp-user-frontend' ), $capability, 'edit.php?post_type=wpuf_subscription' );
+            // $subscription_hook = add_submenu_page( $this->parent_slug, __( 'Subscriptions', 'wp-user-frontend' ), __( 'Subscriptions', 'wp-user-frontend' ), $capability, 'edit.php?post_type=wpuf_subscription' );
+
+            $subscription_hook = add_submenu_page(
+                $this->parent_slug,
+                __( 'Subscriptions', 'wp-user-frontend' ),
+                __( 'Subscriptions', 'wp-user-frontend' ),
+                $capability,
+                'wpuf_subscription',
+                [ $this, 'subscription_menu_page' ]
+            );
 
             $this->all_submenu_hooks['subscription_hook'] = $subscription_hook;
+            add_action( 'load-' . $subscription_hook, [ $this, 'subscription_menu_action' ] );
 
             $transactions_page = add_submenu_page( $this->parent_slug, __( 'Transactions', 'wp-user-frontend' ), __( 'Transactions', 'wp-user-frontend' ), $capability, 'wpuf_transaction', [ $this, 'transactions_page' ] );
 
@@ -93,6 +103,7 @@ class Menu {
      * @return void
      */
     public function wpuf_post_forms_page() {
+        add_action( 'admin_footer', [ $this, 'load_headway_badge' ] );
         // phpcs:ignore WordPress.Security.NonceVerification
         $action           = ! empty( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : null;
         $add_new_page_url = admin_url( 'admin.php?page=wpuf-post-forms&action=add-new' );
@@ -110,6 +121,38 @@ class Menu {
     }
 
     /**
+     * Load the Headway badge
+     *
+     * @since 4.0.5
+     *
+     * @return void
+     */
+    public function load_headway_badge() {
+        ?>
+        <script>
+            const HW_config = {
+                selector: '.headway-icon',
+                account: 'JPqPQy',
+                callbacks: {
+                    onWidgetReady: function ( widget ) {
+                        if ( widget.getUnseenCount() === 0 ) {
+                            document.querySelector('.headway-header ul li.headway-icon span#HW_badge_cont.HW_visible')
+                                .style = 'opacity: 0';
+                        }
+                    },
+                    onHideWidget: function(){
+                        document.querySelector('.headway-header ul li.headway-icon span#HW_badge_cont.HW_visible')
+                            .style = 'opacity: 0';
+                    }
+                }
+            };
+
+        </script>
+        <script async src="//cdn.headwayapp.co/widget.js"></script>
+        <?php
+    }
+
+    /**
      * The action to run just after the menu is created.
      *
      * @since 4.0.0
@@ -122,6 +165,27 @@ class Menu {
          * This hook won't get translated even the site language is changed
          */
         do_action( 'wpuf_load_post_forms' );
+    }
+
+    public function subscription_menu_action() {
+        /**
+         * Backdoor for calling the menu hook.
+         * This hook won't get translated even the site language is changed
+         */
+        do_action( 'wpuf_load_subscription_page' );
+    }
+
+    /**
+     * The content of the Subscription page.
+     *
+     * @since WPUF_VERSION
+     *
+     * @return void
+     */
+    public function subscription_menu_page() {
+        $page = WPUF_INCLUDES . '/Admin/views/subscriptions.php';
+
+        wpuf_require_once( $page );
     }
 
     /**
@@ -228,6 +292,12 @@ class Menu {
      * @return void
      */
     public function enqueue_tools_script() {
+        /**
+         * Backdoor for calling the menu hook.
+         * This hook won't get translated even the site language is changed
+         */
+        do_action( 'wpuf_load_tools' );
+
         wp_enqueue_media(); // for uploading JSON
 
         wp_enqueue_script( 'wpuf-vue' );
@@ -269,10 +339,10 @@ class Menu {
      * @return void
      */
     public function enqueue_settings_page_scripts() {
-        wp_enqueue_style( 'wpuf-admin' );
-        wp_enqueue_script( 'wpuf-admin' );
         wp_enqueue_script( 'wpuf-subscriptions' );
         wp_enqueue_script( 'wpuf-settings' );
+
+        add_action( 'admin_footer', [ $this, 'load_headway_badge' ] );
     }
 
     /**
@@ -283,8 +353,17 @@ class Menu {
     public function plugin_settings_page() {
         ?>
         <div class="wrap">
-
-            <h2 style="margin-bottom: 15px;"><?php esc_html_e( 'Settings', 'wp-user-frontend' ); ?></h2>
+            <h2 class="with-headway-icon">
+                <span class="title-area">
+                    <?php esc_html_e( 'Settings', 'wp-user-frontend' ); ?>
+                </span>
+                <span class="flex-end">
+                    <span class="headway-icon"></span>
+                    <a class="canny-link" target="_blank" href="<?php echo esc_url( 'https://wpuf.canny.io/ideas' ); ?>">💡 <?php esc_html_e(
+                    'Submit Ideas', 'wp-user-frontend'
+                    ); ?></a>
+                </span>
+            </h2>
             <div class="wpuf-settings-wrap">
                 <?php
                 settings_errors();

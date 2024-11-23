@@ -373,7 +373,9 @@
 
     <div v-if="'logged_in' === selected" class="condiotional-logic-container">
 
-    	<?php $roles = get_editable_roles(); ?>
+    	<?php use WeDevs\Wpuf\Admin\Subscription;
+
+	    $roles = get_editable_roles(); ?>
 
     	<ul>
 			<?php
@@ -396,7 +398,7 @@
     		<?php
 
                 if ( class_exists( 'WPUF_Subscription' ) ) {
-                    $subscriptions  = (new \WeDevs\Wpuf\Admin\Subscription())->get_subscriptions();
+                    $subscriptions  = wpuf()->subscription->get_subscriptions();
 
                     if ( $subscriptions ) {
                         foreach ( $subscriptions as $pack ) {
@@ -433,6 +435,21 @@
     </ul>
 
     <span v-if="field.help" class="wpuf-help" v-html="field.help" />
+</div>
+</script>
+
+<script type="text/x-template" id="tmpl-wpuf-form-cloudflare_turnstile">
+<div class="wpuf-fields">
+    <template v-if="!has_turnstile_api_keys">
+        <p v-html="no_api_keys_msg"></p>
+    </template>
+
+    <template v-else>
+        <img
+            class="wpuf-turnstile-placeholder"
+            :src="turnstile_image"
+            alt="">
+    </template>
 </div>
 </script>
 

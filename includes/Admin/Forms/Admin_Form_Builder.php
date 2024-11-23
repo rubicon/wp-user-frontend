@@ -42,7 +42,7 @@ class Admin_Form_Builder {
         $post = get_post( $this->settings['post_id'] );
         // if we have an existing post, then let's start
         if ( ! empty( $post->ID ) ) {
-            add_action( 'in_admin_header', [ $this, 'remove_admin_notices' ] );
+            add_action( 'in_admin_header', 'wpuf_remove_admin_notices' );
             add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue_scripts' ] );
             add_action( 'admin_print_scripts', [ $this, 'admin_print_scripts' ] );
             add_action( 'admin_footer', [ $this, 'custom_dequeue' ] );
@@ -74,23 +74,6 @@ class Admin_Form_Builder {
             <?php esc_html_e( 'Save Draft', 'wp-user-frontend' ); ?>
         </a>
         <?php
-    }
-
-    /**
-     * Remove all kinds of admin notices
-     *
-     * Since we don't have much space left on top of the page,
-     * we have to remove all kinds of admin notices
-     *
-     * @since 2.5
-     *
-     * @return void
-     */
-    public function remove_admin_notices() {
-        remove_all_actions( 'network_admin_notices' );
-        remove_all_actions( 'user_admin_notices' );
-        remove_all_actions( 'admin_notices' );
-        remove_all_actions( 'all_admin_notices' );
     }
 
     /**
@@ -141,6 +124,7 @@ class Admin_Form_Builder {
             'password',
             'user_avatar',
             'taxonomy',
+            'cloudflare_turnstile',
         ];
         $taxonomy_terms = array_keys( get_taxonomies() );
         $single_objects = array_merge( $single_objects, $taxonomy_terms );
@@ -176,8 +160,11 @@ class Admin_Form_Builder {
                 'notifications'    => wpuf_get_form_notifications( $post->ID ),
                 'pro_link'         => Pro_Prompt::get_pro_url(),
                 'site_url'         => site_url( '/' ),
+                'asset_url'        => WPUF_ASSET_URI,
                 'recaptcha_site'   => wpuf_get_option( 'recaptcha_public', 'wpuf_general' ),
                 'recaptcha_secret' => wpuf_get_option( 'recaptcha_private', 'wpuf_general' ),
+                'turnstile_site'   => wpuf_get_option( 'turnstile_site_key', 'wpuf_general' ),
+                'turnstile_secret' => wpuf_get_option( 'turnstile_secret_key', 'wpuf_general' ),
                 'nonce'            => wp_create_nonce( 'form-builder-setting-nonce' ),
             ]
         );
@@ -205,11 +192,10 @@ class Admin_Form_Builder {
         <script>
             if (!window.Promise) {
                 var promise_polyfill = document.createElement( 'script' );
-                promise_polyfill.setAttribute( 'src', 'https://cdn.polyfill.io/v2/polyfill.min.js' );
+                promise_polyfill.setAttribute( 'src', 'https://cdnjs.cloudflare.com/polyfill/v3/polyfill.js?version=4.8.0&features=default' );
                 document.head.appendChild( promise_polyfill );
             }
         </script>
-
         <script>
             var wpuf_form_builder_mixins = function ( mixins, mixin_parent ) {
                 if (!mixins || !mixins.length) {

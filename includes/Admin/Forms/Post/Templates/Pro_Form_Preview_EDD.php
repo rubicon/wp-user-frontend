@@ -1,6 +1,7 @@
 <?php
 
 namespace WeDevs\Wpuf\Admin\Forms\Post\Templates;
+
 /**
  * Easy Digital Downloads post form template preview
  */
@@ -18,6 +19,11 @@ class Pro_Form_Preview_EDD {
      * @var string
      */
     public $image;
+
+    /**
+     * @var string
+     */
+    private $pro_icon;
 
     public function __construct() {
         $this->title    = __( 'EDD Download', 'wp-user-frontend' );

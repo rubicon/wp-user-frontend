@@ -2,9 +2,11 @@
 
 namespace WeDevs\Wpuf\Ajax;
 
+use DOMDocument;
 use WeDevs\Wpuf\Admin\Forms\Form;
 use WeDevs\Wpuf\Traits\FieldableTrait;
 use WeDevs\Wpuf\User_Subscription;
+use WP_Error;
 
 class Frontend_Form_Ajax {
 
@@ -17,6 +19,13 @@ class Frontend_Form_Ajax {
     private $expired_post_status = 'wpuf-expired_post_status';
 
     private $post_expiration_message = 'wpuf-post_expiration_message';
+
+    /**
+     *  An array of form fields retrieved from the form configuration.
+     *
+     * @var array
+     */
+    private $form_fields;
 
     /**
      * New/Edit post submit handler
@@ -106,24 +115,6 @@ class Frontend_Form_Ajax {
             }
         }
 
-        $protected_shortcodes = wpuf_get_protected_shortcodes();
-
-        // check each form field for restricted shortcodes
-        foreach ( $this->form_fields as $single_field ) {
-            if ( empty( $single_field['rich'] ) || 'yes' !== $single_field['rich'] ) {
-                continue;
-            }
-
-            $current_data = ! empty( $_POST[ $single_field['name'] ] ) ? sanitize_textarea_field( wp_unslash( $_POST[ $single_field['name'] ] ) ) : '';
-
-            foreach ( $protected_shortcodes as $shortcode ) {
-                $search_for = '[' . $shortcode;
-                if ( strpos( $current_data, $search_for ) !== false ) {
-                    $this->send_error( sprintf( __( 'Using %s as shortcode is restricted', 'wp-user-frontend' ), $shortcode ) );
-                }
-            }
-        }
-
         foreach ( $attachments_to_delete as $attach_id ) {
             wp_delete_attachment( $attach_id, true );
         }
@@ -145,8 +136,7 @@ class Frontend_Form_Ajax {
         }
 
         $is_update           = false;
-        $post_author         = null;
-        $default_post_author = wpuf_get_option( 'default_post_owner', 'wpuf_frontend_posting', 1 );
+        // $default_post_author = wpuf_get_option( 'default_post_owner', 'wpuf_frontend_posting', 1 );
         $post_author         = $this->wpuf_get_post_user();
 
         $allowed_tags = wp_kses_allowed_html( 'post' );
@@ -172,9 +162,9 @@ class Frontend_Form_Ajax {
             $charging_enabled = 'yes';
         }
 
-        if ( $guest_mode === 'true' && $guest_verify === 'true' && ! is_user_logged_in() && $charging_enabled === 'yes' ) {
+        if ( 'true' === $guest_mode && 'true' === $guest_verify && ! is_user_logged_in() && 'yes' === $charging_enabled ) {
             $postarr['post_status'] = wpuf_get_draft_post_status( $this->form_settings );
-        } elseif ( $guest_mode === 'true' && $guest_verify === 'true' && ! is_user_logged_in() ) {
+        } elseif ( 'true' === $guest_mode && 'true' === $guest_verify && ! is_user_logged_in() ) {
             $postarr['post_status'] = 'draft';
         }
         //if date is set and assigned as publish date
@@ -321,7 +311,7 @@ class Frontend_Form_Ajax {
 
             // find our if any images in post content and associate them
             if ( ! empty( $postarr['post_content'] ) ) {
-                $dom = new \DOMDocument();
+                $dom = new DOMDocument();
                 @$dom->loadHTML( $postarr['post_content'] );
                 $images = $dom->getElementsByTagName( 'img' );
 
@@ -467,10 +457,10 @@ class Frontend_Form_Ajax {
 
             //redirect the user
             $response = apply_filters( 'wpuf_add_post_redirect', $response, $post_id, $form_id, $this->form_settings );
-            //now perform some post related actions. it should done after other action.either count related problem emerge
-            do_action( 'wpuf_add_post_after_insert', $post_id, $form_id, $this->form_settings, $meta_vars ); // plugin API to extend the functionality
-
         }
+
+        // now perform some post related actions. it should be done after other action. either count related problem emerge
+        do_action( 'wpuf_add_post_after_insert', $post_id, $form_id, $this->form_settings, $meta_vars ); // plugin API to extend the functionality
 
         return $response;
     }
@@ -493,7 +483,25 @@ class Frontend_Form_Ajax {
 
                 // is valid email?
                 if ( ! is_email( $guest_email ) ) {
-                    wpuf()->ajax->send_error( __( 'Invalid email address.', 'wp-user-frontend' ) );
+                    echo json_encode(
+                        [
+                            'success' => false,
+                            'error'   => __( 'Invalid email address.', 'wp-user-frontend' ),
+                        ]
+                    );
+
+                    die();
+
+//                    $this->send_error( __( 'Invalid email address.', 'wp-user-frontend' ) );
+//                    wp_send_json(
+//                        [
+//                            'success'     => false,
+//                            'error'       => __( "You already have an account in our site. Please login to continue.\n\nClicking 'OK' will redirect you to the login page and you will lose the form data.\nClick 'Cancel' to stay at this page.", 'wp-user-frontend' ),
+//                            'type'        => 'login',
+//                            'redirect_to' => wp_login_url( get_permalink( $page_id ) ),
+//                        ]
+//                    );
+                    // wpuf()->ajax->send_error( __( 'Invalid email address.', 'wp-user-frontend' ) );
                 }
 
                 // check if the user email already exists
@@ -517,7 +525,7 @@ class Frontend_Form_Ajax {
 
                     $user_pass = wp_generate_password( 12, false );
 
-                    $errors = new \WP_Error();
+                    $errors = new WP_Error();
 
                     do_action( 'register_post', $username, $guest_email, $errors );
 
@@ -623,23 +631,23 @@ class Frontend_Form_Ajax {
         $post = get_post( $post_id );
 
         $post_field_search = [
-            '%post_title%',
-            '%post_content%',
-            '%post_excerpt%',
-            '%tags%',
-            '%category%',
-            '%author%',
-            '%author_email%',
-            '%author_bio%',
-            '%sitename%',
-            '%siteurl%',
-            '%permalink%',
-            '%editlink%',
+            '{post_title}',
+            '{post_content}',
+            '{post_excerpt}',
+            '{tags}',
+            '{category}',
+            '{author}',
+            '{author_email}',
+            '{author_bio}',
+            '{sitename}',
+            '{siteurl}',
+            '{permalink}',
+            '{editlink}',
         ];
 
         $home_url = sprintf( '<a href="%s">%s</a>', home_url(), home_url() );
         $post_url = sprintf( '<a href="%s">%s</a>', get_permalink( $post_id ), get_permalink( $post_id ) );
-        $post_edit_link = sprintf( '<a href="%s">%s</a>', admin_url( 'WPUF_Post_Form_Template_Post.php?action=edit&post=' . $post_id ), admin_url( 'WPUF_Post_Form_Template_Post.php?action=edit&post=' . $post_id ) );
+	    $post_edit_link = sprintf( '<a href="%s">%s</a>', admin_url( 'post.php?action=edit&post=' . $post_id ), admin_url( 'post.php?action=edit&post=' . $post_id ) );
 
         $post_field_replace = [
             $post->post_title,
@@ -657,14 +665,14 @@ class Frontend_Form_Ajax {
         ];
 
         if ( class_exists( 'WooCommerce' ) ) {
-            $post_field_search[] = '%product_cat%';
+            $post_field_search[] = '{product_cat}';
             $post_field_replace[] = get_the_term_list( $post_id, 'product_cat', '', ', ' );
         }
 
         $content = str_replace( $post_field_search, $post_field_replace, $content );
 
         // custom fields
-        preg_match_all( '/%custom_([\w-]*)\b%/', $content, $matches );
+        preg_match_all( '/{custom_([\w-]*)\b}/', $content, $matches );
         [ $search, $replace ] = $matches;
 
         if ( $replace ) {

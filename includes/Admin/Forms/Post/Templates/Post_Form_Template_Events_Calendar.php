@@ -94,34 +94,41 @@ class Post_Form_Template_Events_Calendar extends Form_Template{
                 'wpuf_cond'  => $this->conditionals,
             ],
             [
-                'input_type' => 'url',
-                'template'   => 'website_url',
-                'required'   => 'no',
-                'label'      => __( 'Event Website', 'wp-user-frontend' ),
-                'name'       => '_EventURL',
-                'is_meta'    => 'yes',
-                'width'      => 'large',
-                'size'       => 40,
-                'wpuf_cond'  => $this->conditionals,
+                'input_type'  => 'url',
+                'template'    => 'website_url',
+                'required'    => 'no',
+                'label'       => __( 'Event Website', 'wp-user-frontend' ),
+                'name'        => '_EventURL',
+                'placeholder' => '',
+                'default'     => '',
+                'is_meta'     => 'yes',
+                'width'       => 'large',
+                'size'        => 40,
+                'wpuf_cond'   => $this->conditionals,
             ],
             [
-                'input_type' => 'text',
-                'template'   => 'text_field',
-                'required'   => 'no',
-                'label'      => __( 'Currency Symbol', 'wp-user-frontend' ),
-                'name'       => '_EventCurrencySymbol',
-                'is_meta'    => 'yes',
-                'size'       => 40,
-                'wpuf_cond'  => $this->conditionals,
+                'input_type'  => 'text',
+                'template'    => 'text_field',
+                'required'    => 'no',
+                'label'       => __( 'Currency Symbol', 'wp-user-frontend' ),
+                'name'        => '_EventCurrencySymbol',
+                'placeholder' => '',
+                'default'     => '',
+                'is_meta'     => 'yes',
+                'size'        => 40,
+                'wpuf_cond'   => $this->conditionals,
             ],
             [
-                'input_type' => 'text',
-                'template'   => 'text_field',
-                'required'   => 'no',
-                'label'      => __( 'Cost', 'wp-user-frontend' ),
-                'name'       => '_EventCost',
-                'is_meta'    => 'yes',
-                'wpuf_cond'  => $this->conditionals,
+                'input_type'  => 'text',
+                'template'    => 'text_field',
+                'required'    => 'no',
+                'label'       => __( 'Cost', 'wp-user-frontend' ),
+                'name'        => '_EventCost',
+                'placeholder' => '',
+                'default'     => '',
+                'size'        => 40,
+                'is_meta'     => 'yes',
+                'wpuf_cond'   => $this->conditionals,
             ],
             [
                 'input_type'   => 'image_upload',
@@ -182,38 +189,38 @@ class Post_Form_Template_Events_Calendar extends Form_Template{
             'submit_text'      => __( 'Create Event', 'wp-user-frontend' ),
             'edit_post_status' => 'publish',
             'edit_redirect_to' => 'same',
-            'update_message'   => __( 'Event has been updated successfully. <a target="_blank" href="%link%">View event</a>',
+            'update_message'   => __( 'Event has been updated successfully. <a target="_blank" href="{link}">View event</a>',
                                       'wp-user-frontend' ),
             'edit_url'         => '',
             'update_text'      => __( 'Update Event', 'wp-user-frontend' ),
-            'form_template'    => __CLASS__,
+            'form_template'    => 'post_form_template_events_calendar',
             'notification'     => [
                 'new'          => 'on',
                 'new_to'       => get_option( 'admin_email' ),
                 'new_subject'  => 'New event has been created',
                 'new_body'     => 'Hi,
-A new event has been created in your site %sitename% (%siteurl%).
+A new event has been created in your site {sitename} ({siteurl}).
 
 Here is the details:
-Event Title: %post_title%
-Description: %post_content%
-Short Description: %post_excerpt%
-Author: %author%
-Post URL: %permalink%
-Edit URL: %editlink%',
+Event Title: {post_title}
+Description: {post_content}
+Short Description: {post_excerpt}
+Author: {author}
+Post URL: {permalink}
+Edit URL: {editlink}',
                 'edit'         => 'off',
                 'edit_to'      => get_option( 'admin_email' ),
                 'edit_subject' => 'Post has been edited',
                 'edit_body'    => 'Hi,
-The event "%post_title%" has been updated.
+The event "{post_title}" has been updated
 
 Here is the details:
-Event Title: %post_title%
-Description: %post_content%
-Short Description: %post_excerpt%
-Author: %author%
-Post URL: %permalink%
-Edit URL: %editlink%',
+Event Title: {post_title}
+Description: {post_content}
+Short Description: {post_excerpt}
+Author: {author}
+Post URL: {permalink}
+Edit URL: {editlink}'
             ],
         ];
     }

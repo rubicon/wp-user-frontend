@@ -29,7 +29,6 @@ class Ajax {
         $this->register_ajax( 'wpuf_insert_image', [ new Ajax\Upload_Ajax(), 'insert_image' ] );
         $this->register_ajax( 'wpuf_form_builder_save_form', [ new Ajax\Admin_Form_Builder_Ajax(), 'save_form' ], $this->logged_in_only );
         $this->register_ajax( 'wpuf_form_setting_post', [ new Ajax\Admin_Form_Builder_Ajax(), 'wpuf_get_post_taxonomies' ], $this->logged_in_only );
-        $this->register_ajax( 'wpuf_whats_new_dismiss', [ new Admin\Whats_New(), 'dismiss_notice' ] );
         $this->register_ajax( 'wpuf_dismiss_promotional_offer_notice', [ new Admin\Promotion(), 'dismiss_promotional_offer' ], $this->logged_in_only );
         $this->register_ajax( 'wpuf_dismiss_review_notice', [ new Admin\Promotion(), 'dismiss_review_notice' ], $this->logged_in_only );
         $this->register_ajax( 'wpuf_ajax_tag_search', 'wpuf_ajax_tag_search' );
@@ -47,7 +46,7 @@ class Ajax {
         $this->register_ajax( 'wpuf_account_update_profile', [ new Frontend\Frontend_Account(), 'update_profile' ], $this->logged_in_only );
         $this->register_ajax( 'wpuf_import_forms', [ new Admin\Admin_Tools(), 'import_forms' ], $this->logged_in_only );
         $this->register_ajax( 'wpuf_get_child_cat', 'wpuf_get_child_cats' );
-        $this->register_ajax( 'wpuf_ajax_address', 'wpuf_get_child_cats' );
+        $this->register_ajax( 'wpuf_ajax_address', 'wpuf_ajax_get_states_field' );
         $this->register_ajax( 'wpuf_update_billing_address', 'wpuf_update_billing_address' );
         $this->register_ajax( 'wpuf_clear_schedule_lock', 'wpuf_clear_schedule_lock', $this->logged_in_only );
     }

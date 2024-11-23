@@ -10,21 +10,23 @@ use WeDevs\WpUtils\ContainerTrait;
  *
  * @since 4.0.0
  */
-#[AllowDynamicProperties]
 class Frontend {
     use ContainerTrait;
 
     public function __construct() {
-        $this->frontend_form      = new Frontend\Frontend_Form();
-        $this->registration       = new Frontend\Registration();
-        $this->simple_login       = new Free\Simple_Login();
-        $this->frontend_account   = new Frontend\Frontend_Account();
-        $this->frontend_dashboard = new Frontend\Frontend_Dashboard();
-        $this->shortcode          = new Frontend\Shortcode();
-        $this->payment            = new Frontend\Payment();
-        $this->form_preview       = new Frontend\Form_Preview();
+        $this->container['frontend_form']      = new Frontend\Frontend_Form();
+        $this->container['registration']       = new Frontend\Registration();
+        $this->container['simple_login']       = new Free\Simple_Login();
+        $this->container['frontend_account']   = new Frontend\Frontend_Account();
+        $this->container['frontend_dashboard'] = new Frontend\Frontend_Dashboard();
+        $this->container['shortcode']          = new Frontend\Shortcode();
+        $this->container['payment']            = new Frontend\Payment();
+        $this->container['form_preview']       = new Frontend\Form_Preview();
 
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+
+        // show admin bar as per wpuf settings
+        add_filter( 'show_admin_bar', [ $this, 'show_admin_bar' ] );
     }
 
     /**
@@ -96,51 +98,73 @@ class Frontend {
                     ],
                 ]
             );
-
             wp_localize_script(
-                'wpuf-frontend-form', 'wpuf_frontend', [
-                    'ajaxurl'       => admin_url( 'admin-ajax.php' ),
-                    'error_message' => __( 'Please fix the errors to proceed', 'wp-user-frontend' ),
-                    'nonce'         => wp_create_nonce( 'wpuf_nonce' ),
-                    'word_limit'    => __( 'Word limit reached', 'wp-user-frontend' ),
-                    'cancelSubMsg'  => __(
-                        'Are you sure you want to cancel your current subscription ?', 'wp-user-frontend'
-                    ),
-                    'delete_it'     => __( 'Yes', 'wp-user-frontend' ),
-                    'cancel_it'     => __( 'No', 'wp-user-frontend' ),
-                    'word_max_title'               => __(
-                        'Maximum word limit reached. Please shorten your texts.', 'wp-user-frontend'
-                    ),
-                    'word_max_details'             => __(
-                        'This field supports a maximum of %number% words, and the limit is reached. Remove a few words to reach the acceptable limit of the field.',
-                        'wp-user-frontend'
-                    ),
-                    'word_min_title'               => __( 'Minimum word required.', 'wp-user-frontend' ),
-                    'word_min_details'             => __(
-                        'This field requires minimum %number% words. Please add some more text.', 'wp-user-frontend'
-                    ),
-                    'char_max_title'               => __(
-                        'Maximum character limit reached. Please shorten your texts.', 'wp-user-frontend'
-                    ),
-                    'char_max_details'             => __(
-                        'This field supports a maximum of %number% characters, and the limit is reached. Remove a few characters to reach the acceptable limit of the field.',
-                        'wp-user-frontend'
-                    ),
-                    'char_min_title'               => __( 'Minimum character required.', 'wp-user-frontend' ),
-                    'char_min_details'             => __(
-                        'This field requires minimum %number% characters. Please add some more character.',
-                        'wp-user-frontend'
-                    ),
-                    'protected_shortcodes'         => wpuf_get_protected_shortcodes(),
-                    'protected_shortcodes_message' => __( 'Using %shortcode% is restricted', 'wp-user-frontend' ),
-                ]
+                'wpuf-frontend-form', 'wpuf_frontend', apply_filters(
+                    'wpuf_frontend_object', [
+                        'asset_url'                    => WPUF_ASSET_URI,
+                        'ajaxurl'                      => admin_url( 'admin-ajax.php' ),
+                        'error_message'                => __( 'Please fix the errors to proceed', 'wp-user-frontend' ),
+                        'nonce'                        => wp_create_nonce( 'wpuf_nonce' ),
+                        'word_limit'                   => __( 'Word limit reached', 'wp-user-frontend' ),
+                        'cancelSubMsg'                 => __(
+                            'Are you sure you want to cancel your current subscription ?', 'wp-user-frontend'
+                        ),
+                        'delete_it'                    => __( 'Yes', 'wp-user-frontend' ),
+                        'cancel_it'                    => __( 'No', 'wp-user-frontend' ),
+                        'word_max_title'               => __(
+                            'Maximum word limit reached. Please shorten your texts.', 'wp-user-frontend'
+                        ),
+                        'word_max_details'             => __(
+                            'This field supports a maximum of %number% words, and the limit is reached. Remove a few words to reach the acceptable limit of the field.',
+                            'wp-user-frontend'
+                        ),
+                        'word_min_title'               => __( 'Minimum word required.', 'wp-user-frontend' ),
+                        'word_min_details'             => __(
+                            'This field requires minimum %number% words. Please add some more text.', 'wp-user-frontend'
+                        ),
+                        'char_max_title'               => __(
+                            'Maximum character limit reached. Please shorten your texts.', 'wp-user-frontend'
+                        ),
+                        'char_max_details'             => __(
+                            'This field supports a maximum of %number% characters, and the limit is reached. Remove a few characters to reach the acceptable limit of the field.',
+                            'wp-user-frontend'
+                        ),
+                        'char_min_title'               => __( 'Minimum character required.', 'wp-user-frontend' ),
+                        'char_min_details'             => __(
+                            'This field requires minimum %number% characters. Please add some more character.',
+                            'wp-user-frontend'
+                        ),
+                        'protected_shortcodes'         => wpuf_get_protected_shortcodes(),
+                        // translators: %shortcode% is the shortcode name
+                        'protected_shortcodes_message' => __( 'Using %shortcode% is restricted', 'wp-user-frontend' ),
+                        'password_warning_weak'        => __( 'Your password should be at least weak in strength', 'wp-user-frontend' ),
+                        'password_warning_medium'      => __( 'Your password needs to be medium strength for better protection', 'wp-user-frontend' ),
+                        'password_warning_strong'      => __( 'Create a strong password for maximum security', 'wp-user-frontend' ),
+                    ]
+                )
             );
-
             wp_localize_script(
                 'wpuf-frontend-form', 'error_str_obj', [
                     'required'   => __( 'is required', 'wp-user-frontend' ),
                     'mismatch'   => __( 'does not match', 'wp-user-frontend' ),
                     'validation' => __( 'is not valid', 'wp-user-frontend' ),
+                ]
+            );
+
+            wp_localize_script(
+                'wpuf-subscriptions', 'wpuf_subscription', apply_filters(
+                    'wpuf_subscription_js_data', [
+                        'pack_notice'  => __( 'Please Cancel Your Currently Active Pack first!', 'wp-user-frontend' ),
+                    ]
+                )
+            );
+
+            wp_localize_script(
+                'wpuf-billing-address',
+                'ajax_object',
+                [
+                    'ajaxurl'     => admin_url( 'admin-ajax.php' ),
+                    'fill_notice' => __( 'Some Required Fields are not filled!', 'wp-user-frontend' ),
                 ]
             );
         }
@@ -156,7 +180,31 @@ class Frontend {
     private function dokan_is_seller_dashboard() {
         return class_exists( 'WeDevs_Dokan' )
                 && function_exists( 'dokan_is_seller_dashboard' )
-                && dokan_is_seller_dashboard()
-                && ! empty( $wp->query_vars['posts'] );
+                && dokan_is_seller_dashboard();
+    }
+
+    /**
+     * Show/hide admin bar to the permitted user level
+     *
+     * @since 2.2.3
+     *
+     * @return bool
+     */
+    public function show_admin_bar( $val ) {
+        if ( ! is_user_logged_in() ) {
+            return false;
+        }
+
+        $roles        = wpuf_get_option( 'show_admin_bar', 'wpuf_general', [ 'administrator', 'editor', 'author', 'contributor', 'subscriber' ] );
+        $roles        = $roles && is_string( $roles ) ? [ strtolower( $roles ) ] : $roles;
+        $current_user = wp_get_current_user();
+
+        if ( ! empty( $current_user->roles ) && ! empty( $current_user->roles[0] ) ) {
+            if ( ! in_array( $current_user->roles[0], $roles ) ) {
+                return false;
+            }
+        }
+
+        return $val;
     }
 }
